@@ -85,19 +85,19 @@ ISR(TCA0_OVF_vect)
 {
     static uint16_t overflow_count = 0; // Number of overflows since last toggle
     uint16_t overflows_required; // Number of overflows required for next toggle
-    
+    double overflow_duration = (double)(TCA0.SINGLE.PERBUF + 1) / F_CPU;
 
     if (sirenState == 0) // If f1 is active
     {
+        overflows_required = TIME2 / (overflow_duration * 1000) / 2;
         TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / FREQ2 - 1); // Set period for f2
         TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // Set compare value for 50% duty cycle
-        overflows_required = (F_CPU / (TCA0.SINGLE.PERBUF + 1)) * (TIME1 / 1000.0); // Calculate number of overflows required for next toggle
     } 
     else 
     {
         TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / FREQ1 - 1); // Set period for f1
         TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // Set compare value for 50% duty cycle
-        overflows_required = (F_CPU / (TCA0.SINGLE.PERBUF + 1)) * (TIME2 / 1000.0); // Calculate number of overflows required for next toggle
+        overflows_required = TIME1 / (overflow_duration * 1000);
     }
 
     overflow_count++; // Increment overflow count
@@ -106,12 +106,8 @@ ISR(TCA0_OVF_vect)
     {
         sirenState = !sirenState; // Toggle siren state
         overflow_count = 0;  // Reset overflow count
-    }
-
-    
-    TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm; // Clear overflow flag
-
-    
+    }   
+    TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm; // Clear overflow flag   
 }
 
 /** CODE: Write your code for Ex E5.0 above this line. */
