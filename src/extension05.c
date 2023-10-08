@@ -5,12 +5,15 @@
 #include "qutyserial.h"
 #include <avr/interrupt.h>
 
-#define FREQ1 1556 // Frequency for f1
-#define FREQ2 833 // Frequency for f2
+#define F_CPU 3333333L
+
+#define FREQ1 2140 // Frequency for f1
+#define FREQ2 4000 // Frequency for f2
 #define TIME1 300  // Duration for f1
 #define TIME2 670  // Duration for f2
 
 volatile uint8_t sirenState = 0; // 0 for f1, 1 for f2
+
 
 /** EX: E5.0
 
@@ -52,11 +55,11 @@ In addition to init(), you may write any code you wish
 in this file, including ISRs.
 */
 
-
-
 void init(void)
-{  
+{
+    
     cli(); // Disable interrupts
+
     PORTB.DIRSET = PIN0_bm; // Set PB0 as output
 
     
@@ -66,55 +69,39 @@ void init(void)
     TCA0.SINGLE.CTRLB |= TCA_SINGLE_CMP0EN_bm; // Enable compare channel 0
 
     
-    TCA0.SINGLE.PERBUF = FREQ1; // Set period for f1
-    TCA0.SINGLE.CMP0BUF = FREQ1 / 2; // Set compare value for 50% duty cycle
-    TCA0.SINGLE.CNT = 0; // Set counter to 0
-
-    
     TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm; // Enable overflow interrupt
 
+    TCA0.SINGLE.PER = (uint16_t)(F_CPU / (FREQ1) - 1); // Set period for f1
+    TCA0.SINGLE.CMP0 = (TCA0.SINGLE.PER / 2); // Set compare value for 50% duty cycle
     
     TCA0.SINGLE.CTRLA = TCA_SINGLE_ENABLE_bm | TCA_SINGLE_CLKSEL_DIV1_gc; // Enable TCA0 with no prescaler
+
     sei(); // Enable interrupts
 
 }
 
-void TCA0_setup(void){
-    
-}
 
 ISR(TCA0_OVF_vect) 
 {
     static uint16_t overflow_count = 0; // Number of overflows since last toggle
     uint16_t overflows_required; // Number of overflows required for next toggle
-
     
+
     if (sirenState == 0) // If f1 is active
     {
-        
-        TCA0.SINGLE.PERBUF = FREQ2; // Set period for f2
-        TCA0.SINGLE.CMP0BUF = FREQ2 / 2; // Set compare value for 50% duty cycle
-        TCA0.SINGLE.CNT = 0; // Reset counter
-        
-        
-        overflows_required = 641; // 2140 Hz * 0.3 s = 642 overflows
+        TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / FREQ2 - 1); // Set period for f2
+        TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // Set compare value for 50% duty cycle
+        overflows_required = (F_CPU / (TCA0.SINGLE.PERBUF + 1)) * (TIME1 / 1000.0); // Calculate number of overflows required for next toggle
     } 
-    
     else 
     {
-        
-        TCA0.SINGLE.PERBUF = FREQ1; // Set period for f1
-        TCA0.SINGLE.CMP0BUF = FREQ2 / 2; // Set compare value for 50% duty cycle
-        TCA0.SINGLE.CNT = 0; // Reset counter
-
-       
-        overflows_required = 2675; // 4000 Hz * 0.67 s = 2680 overflows
+        TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / FREQ1 - 1); // Set period for f1
+        TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // Set compare value for 50% duty cycle
+        overflows_required = (F_CPU / (TCA0.SINGLE.PERBUF + 1)) * (TIME2 / 1000.0); // Calculate number of overflows required for next toggle
     }
 
-  
     overflow_count++; // Increment overflow count
 
-    
     if (overflow_count >= overflows_required)  // If required number of overflows has occurred
     {
         sirenState = !sirenState; // Toggle siren state
@@ -123,6 +110,8 @@ ISR(TCA0_OVF_vect)
 
     
     TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm; // Clear overflow flag
+
+    
 }
 
 /** CODE: Write your code for Ex E5.0 above this line. */

@@ -13,6 +13,7 @@ int main(void)
     // Call init() and check code returns
     printf("Ex E5.0: Calling init()...");
     init();
+    
     printf("DONE.\n");
 
     while (1)
