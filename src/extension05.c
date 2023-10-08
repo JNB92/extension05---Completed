@@ -5,8 +5,8 @@
 #include "qutyserial.h"
 #include <avr/interrupt.h>
 
-#define FREQ1 2140 // Frequency for f1
-#define FREQ2 4000 // Frequency for f2
+#define FREQ1 1556 // Frequency for f1
+#define FREQ2 833 // Frequency for f2
 #define TIME1 300  // Duration for f1
 #define TIME2 670  // Duration for f2
 
@@ -52,11 +52,11 @@ In addition to init(), you may write any code you wish
 in this file, including ISRs.
 */
 
-void init(void)
-{
-    
-    cli(); // Disable interrupts
 
+
+void init(void)
+{  
+    cli(); // Disable interrupts
     PORTB.DIRSET = PIN0_bm; // Set PB0 as output
 
     
@@ -64,42 +64,51 @@ void init(void)
 
    
     TCA0.SINGLE.CTRLB |= TCA_SINGLE_CMP0EN_bm; // Enable compare channel 0
+
     
+    TCA0.SINGLE.PERBUF = FREQ1; // Set period for f1
+    TCA0.SINGLE.CMP0BUF = FREQ1 / 2; // Set compare value for 50% duty cycle
+    TCA0.SINGLE.CNT = 0; // Set counter to 0
+
     
     TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm; // Enable overflow interrupt
 
     
     TCA0.SINGLE.CTRLA = TCA_SINGLE_ENABLE_bm | TCA_SINGLE_CLKSEL_DIV1_gc; // Enable TCA0 with no prescaler
-
     sei(); // Enable interrupts
 
 }
 
+void TCA0_setup(void){
+    
+}
 
 ISR(TCA0_OVF_vect) 
 {
     static uint16_t overflow_count = 0; // Number of overflows since last toggle
     uint16_t overflows_required; // Number of overflows required for next toggle
 
+    
     if (sirenState == 0) // If f1 is active
     {
         
-        TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / (2 * FREQ2) - 1); // Set period for f2
-        TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // Set compare value for 50% duty cycle
+        TCA0.SINGLE.PERBUF = FREQ2; // Set period for f2
+        TCA0.SINGLE.CMP0BUF = FREQ2 / 2; // Set compare value for 50% duty cycle
         TCA0.SINGLE.CNT = 0; // Reset counter
         
         
-        overflows_required = 2706; // 2140 Hz * 0.3 s = 642 overflows
+        overflows_required = 641; // 2140 Hz * 0.3 s = 642 overflows
     } 
+    
     else 
     {
         
-        TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / (2 * FREQ1) - 1); // Set period for f1
-        TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // Set compare value for 50% duty cycle
+        TCA0.SINGLE.PERBUF = FREQ1; // Set period for f1
+        TCA0.SINGLE.CMP0BUF = FREQ2 / 2; // Set compare value for 50% duty cycle
         TCA0.SINGLE.CNT = 0; // Reset counter
 
        
-        overflows_required = 633; // 4000 Hz * 0.67 s = 2680 overflows
+        overflows_required = 2675; // 4000 Hz * 0.67 s = 2680 overflows
     }
 
   
