@@ -55,71 +55,65 @@ in this file, including ISRs.
 void init(void)
 {
     
-    
-    // Configure buzzer net as an output
-    PORTB.DIRSET = PIN0_bm;  // Assuming buzzer is connected to PIN1 of PORTB
+    cli(); // Disable interrupts
 
-    // Set up TCA0 in single slope mode
-    TCA0.SINGLE.CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc;
-
-    // Set up TCA0 to use the system clock (no prescaling)
-    TCA0.SINGLE.CTRLB |= TCA_SINGLE_CMP0EN_bm; // ENABLE COMPARE CHANNEL 0
-    
-    // Enable overflow interrupt for TCA0
-    TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm;
-
-    // Set initial frequency to FREQ1
-    TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / (2 * FREQ1) - 1);
-
-    // Start TCA0 and set prescaler to F_CPU/1 (no prescaling)
-    TCA0.SINGLE.CTRLA = TCA_SINGLE_ENABLE_bm | TCA_SINGLE_CLKSEL_DIV1_gc;
+    PORTB.DIRSET = PIN0_bm; // Set PB0 as output
 
     
+    TCA0.SINGLE.CTRLB = TCA_SINGLE_WGMODE_SINGLESLOPE_gc; // Set single slope PWM mode
+
+   
+    TCA0.SINGLE.CTRLB |= TCA_SINGLE_CMP0EN_bm; // Enable compare channel 0
+    
+    
+    TCA0.SINGLE.INTCTRL = TCA_SINGLE_OVF_bm; // Enable overflow interrupt
+
+    
+    TCA0.SINGLE.CTRLA = TCA_SINGLE_ENABLE_bm | TCA_SINGLE_CLKSEL_DIV1_gc; // Enable TCA0 with no prescaler
+
+    sei(); // Enable interrupts
+
 }
 
-// TCA0 overflow ISR
+
 ISR(TCA0_OVF_vect) 
-
 {
-    uint16_t overflow_count = 0;  // Number of overflows since the last state change
-    uint16_t overflows_required;
-    if (sirenState == 0) {
-        // Set frequency to FREQ2 and duration to TIME2
-        TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / (2 * FREQ2) - 1);
-        TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // 50% duty cycle
-        TCA0.SINGLE.CNT = 0;
+    static uint16_t overflow_count = 0; // Number of overflows since last toggle
+    uint16_t overflows_required; // Number of overflows required for next toggle
+
+    if (sirenState == 0) // If f1 is active
+    {
         
-        // Calculate number of overflows required to reach TIME2 duration
-        overflows_required = 10;  // assuming TIME2 is in milliseconds
+        TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / (2 * FREQ2) - 1); // Set period for f2
+        TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // Set compare value for 50% duty cycle
+        TCA0.SINGLE.CNT = 0; // Reset counter
+        
+        
+        overflows_required = 2706; // 2140 Hz * 0.3 s = 642 overflows
+    } 
+    else 
+    {
+        
+        TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / (2 * FREQ1) - 1); // Set period for f1
+        TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // Set compare value for 50% duty cycle
+        TCA0.SINGLE.CNT = 0; // Reset counter
 
-        // Increment the overflow counter
-        overflow_count++;
-
-        // Check if it's time to switch to the next state
-        if (overflow_count >= overflows_required) {
-            sirenState = 1;
-            overflow_count = 0;  // Reset overflow counter for the next state
-    } else {
-    // Set frequency to FREQ1 and duration to TIME1
-    TCA0.SINGLE.PERBUF = (uint16_t)(F_CPU / (2 * FREQ1) - 1);
-    TCA0.SINGLE.CMP0BUF = (TCA0.SINGLE.PERBUF / 2); // 50% duty cycle
-    TCA0.SINGLE.CNT = 0;
-
-    // Calculate number of overflows required to reach TIME1 duration
-    overflows_required = 10;  // assuming TIME1 is in milliseconds
-
-    // Increment the overflow counter
-    overflow_count++;
-
-    // Check if it's time to switch to the next state
-    if (overflow_count >= overflows_required) {
-        sirenState = 0;
-        overflow_count = 0;  // Reset overflow counter for the next state
+       
+        overflows_required = 633; // 4000 Hz * 0.67 s = 2680 overflows
     }
 
-}
-// Clear the interrupt flag
-TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm;
+  
+    overflow_count++; // Increment overflow count
+
+    
+    if (overflow_count >= overflows_required)  // If required number of overflows has occurred
+    {
+        sirenState = !sirenState; // Toggle siren state
+        overflow_count = 0;  // Reset overflow count
     }
+
+    
+    TCA0.SINGLE.INTFLAGS = TCA_SINGLE_OVF_bm; // Clear overflow flag
 }
+
 /** CODE: Write your code for Ex E5.0 above this line. */
